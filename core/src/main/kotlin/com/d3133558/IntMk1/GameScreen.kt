@@ -110,11 +110,13 @@ class GameScreen : Screen {
 
     private fun produceMessages(clientSocket: Socket) {
         try {
-            val message: kotlin.ByteArray = kotlin.ByteArray(1024)
-            clientSocket.getInputStream().read(message,0,1024)
-            val s : String = message.decodeToString()
-            buffer.add(s)
-            Thread.sleep(250) // Simulate delay
+            while (true) {
+                val message: kotlin.ByteArray = kotlin.ByteArray(1024)
+                clientSocket.getInputStream().read(message,0,1024)
+                val s : String = message.decodeToString()
+                buffer.add(s)
+                Thread.sleep(250) // Simulate delay
+            }
 
         } catch (e: InterruptedException) {
             e.printStackTrace()
