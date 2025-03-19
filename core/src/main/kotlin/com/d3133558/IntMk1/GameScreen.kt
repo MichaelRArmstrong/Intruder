@@ -18,7 +18,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener
 import com.badlogic.gdx.utils.ByteArray
 import com.badlogic.gdx.utils.ScreenUtils
 import com.badlogic.gdx.utils.viewport.ScreenViewport
+import java.io.InputStream
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.net.Socket
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
@@ -34,29 +36,48 @@ class GameScreen : Screen {
 
     private lateinit var stage: Stage
     private lateinit var playerTexture: Texture
+    private lateinit var player2Texture: Texture
     private lateinit var playerSprite: Sprite
+    private lateinit var player2Sprite: Sprite
     private lateinit var batch: SpriteBatch
     lateinit var touchpad: Touchpad
     var touchX = 0f
     var touchY = 0f
+    var lastTouchX = 0f
+    var lastTouchY = 0f
     var playerX = 100f
     var playerY = 100f
+    var player2X = 100f
+    var player2Y = 100f
     var playerSpeed = 10f
     var bRecieveMessages = true
 
     val buffer = ConcurrentLinkedQueue<String>()
 
-    val socket =  Socket(HOST,PORT)
+    lateinit var socket : Socket
+    lateinit var inputStream : InputStream
+    lateinit var outputStream: OutputStream
+    lateinit var playerID: String
+
+
     //val socket = Gdx.net.newClientSocket(Net.Protocol.TCP, "152.105.66.53", 4300, null)
     lateinit var rcvMsg : Thread
     lateinit var conMsg : Thread
 
     override fun show() {
+        socket  =  Socket(HOST,PORT)
+        inputStream = socket.getInputStream()
+        outputStream = socket.getOutputStream()
+
         batch = SpriteBatch()
         playerTexture = Texture("blob.png")
+        player2Texture = Texture("blob2.png")
         playerSprite = Sprite(playerTexture)
+        player2Sprite = Sprite(player2Texture)
         playerX = Gdx.graphics.width / 2f - playerSprite.width / 2
         playerY = Gdx.graphics.height / 2f - playerSprite.height / 2
+        player2X = Gdx.graphics.width / 2f - playerSprite.width / 2
+        player2Y = Gdx.graphics.height / 2f - playerSprite.height / 2
         stage = Stage(ScreenViewport(), batch)
         val touchpadSkin = Skin()
         touchpadSkin.add("touchBackground", Texture("touchpad.png"))
@@ -83,8 +104,12 @@ class GameScreen : Screen {
         Gdx.input.inputProcessor = stage
         rcvMsg = Thread { produceMessages(socket)}
         conMsg = Thread { consumeMessages()}
-        rcvMsg.start()
-        conMsg.start()
+        //rcvMsg.start()
+        //conMsg.start()
+        val idLength : Int = inputStream.read()
+        val idBytes : kotlin.ByteArray = kotlin.ByteArray(idLength)
+        inputStream.read(idBytes, 0, idLength)
+        playerID = idBytes.decodeToString()
     }
 
     override fun render(delta: Float) {
@@ -101,7 +126,9 @@ class GameScreen : Screen {
 
         batch.begin()
         playerSprite.setPosition(playerX, playerY)
+        player2Sprite.setPosition(player2X, player2Y)
         playerSprite.draw(batch)
+        player2Sprite.draw(batch)
         batch.end()
 
         stage.act(Gdx.graphics.deltaTime)
@@ -113,6 +140,7 @@ class GameScreen : Screen {
             while (true) {
                 val message: kotlin.ByteArray = kotlin.ByteArray(1024)
                 clientSocket.getInputStream().read(message,0,1024)
+
                 val s : String = message.decodeToString()
                 buffer.add(s)
                 Thread.sleep(250) // Simulate delay
@@ -182,10 +210,47 @@ class GameScreen : Screen {
 //        producer.join()
 //        consumer.join()
 
-        playerX = MathUtils.clamp(playerX + touchX * playerSpeed,0f, Gdx.graphics.width.toFloat()  - playerTexture.width.toFloat())
+        playerX = MathUtils.clamp(
+            playerX + touchX * playerSpeed,
+            0f,
+            Gdx.graphics.width.toFloat() - playerTexture.width.toFloat()
+        )
         //playerX += touchX * playerSpeed
-        playerY = MathUtils.clamp(playerY + touchY * playerSpeed,0f, Gdx.graphics.height.toFloat()  - playerTexture.height.toFloat())
+        playerY = MathUtils.clamp(
+            playerY + touchY * playerSpeed,
+            0f,
+            Gdx.graphics.height.toFloat() - playerTexture.height.toFloat()
+        )
         //playerY += touchY * playerSpeed
+
+
+        if (touchX != lastTouchX || touchY != lastTouchY) {
+
+            val message = GameMessage(playerID, playerX, playerY, ActionType.MOVE)
+            val messageBytes = message.toByteArray()
+
+            outputStream.write(messageBytes)
+            outputStream.flush()
+
+            lastTouchX = touchX
+            lastTouchY = touchY
+
+        }
+
+        //TODO:: Hangs at this line because presumably it is reading a message when there arent any because the program just started etc
+        val receivedBytes = inputStream.readBytes()
+        if (receivedBytes != null) {
+            val receivedMessage = receivedBytes.toGameMessage()
+
+            when (receivedMessage.action) {
+                ActionType.MOVE -> {
+                    player2X = receivedMessage.x
+                    player2Y = receivedMessage.y
+                }
+            }
+
+        }
+
     }
 
     override fun resize(width: Int, height: Int) {
@@ -196,6 +261,7 @@ class GameScreen : Screen {
         stage.dispose()
         batch.dispose()
         playerTexture.dispose()
+        player2Texture.dispose()
         rcvMsg.join()
         conMsg.join()
     }
