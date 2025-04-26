@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.*
 import com.badlogic.gdx.utils.viewport.ScreenViewport
 import com.badlogic.gdx.scenes.scene2d.ui.Skin
 import com.badlogic.gdx.InputMultiplexer
+import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.scenes.scene2d.InputEvent
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener
 
@@ -26,19 +27,30 @@ class MenuScreen (private val game: Main) : Screen{
         val table = Table()
         table.setFillParent(true)
 
+        val textFieldStyle = skin.get(TextField.TextFieldStyle::class.java).also {
+            it.font.data.setScale(4f)
+            it.background.bottomHeight = 20f // Adjust this value
+            it.font.data.down = -20f // Adjust this value
+        }
+
         ipField = TextField("192.168.0.64", skin)
+        ipField.style.font.data.setScale(4f)
+
         portField = TextField("4300", skin)
+        portField.style.font.data.setScale(4f)
+
         connectButton = TextButton("Connect", skin)
+        connectButton.style.font.data.setScale(4f)
 
         table.add(Label("Server IP", skin))
-        table.add(ipField).width(200f).pad(10f)
+        table.add(ipField).width(600f).height(100f).pad(40f)
         table.row()
 
         table.add(Label("Port", skin))
-        table.add(portField).width(200f).pad(10f)
+        table.add(portField).width(600f).height(100f).pad(40f)
         table.row()
 
-        table.add(connectButton).colspan(2).pad(20f)
+        table.add(connectButton).colspan(2).width(300f).height(100f).padTop(30f)
 
         connectButton.addListener(object : ClickListener() {
             override fun clicked(event: InputEvent, x: Float, y: Float) {
@@ -54,6 +66,7 @@ class MenuScreen (private val game: Main) : Screen{
     override fun render(delta: Float) {
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
+
         stage.act(delta)
         stage.draw()
     }

@@ -10,6 +10,9 @@ import com.d3133558.IntMk1.Main
 class AndroidLauncher : AndroidApplication() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
         initialize(Main(), AndroidApplicationConfiguration().apply {
             // Configure your application here.
             useImmersiveMode = true // Recommended, but not required.

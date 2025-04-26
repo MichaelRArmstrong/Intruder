@@ -1,11 +1,14 @@
 package com.d3133558.IntMk1
 
+
+
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.Net
 import com.badlogic.gdx.Screen
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g2d.BitmapFont
+import com.badlogic.gdx.graphics.g2d.GlyphLayout
 import com.badlogic.gdx.graphics.g2d.Sprite
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.math.MathUtils
@@ -164,20 +167,36 @@ class GameScreen(private val game: Main, private val ip: String, private val por
         }
 
         //draw names for other players
+        val originalScaleX = font.data.scaleX
+        val originalScaleY = font.data.scaleY
+        font.data.setScale(3f) //scale up the font
+        val layout = GlyphLayout()
         for ((id, sprite) in players) {
             if (id != playerID) {
                 sprite.draw(batch)
 
-                font.color = sprite.color // Match name text color to sprite color
-                font.draw(batch, id, sprite.x, sprite.y + sprite.height + 20f)
+                font.color = sprite.color //match name text color to sprite color
+                layout.setText(font, id)
+                val textX = sprite.x + (sprite.width - layout.width) / 2 //center the text horizontally
+                val textY = sprite.y + sprite.height + 20f + layout.height //position the text above the sprite
+                font.draw(batch, layout, textX, textY)
             }
         }
+        font.data.setScale(originalScaleX, originalScaleY)
 
         //draw clients sprite and name
+        font.data.setScale(3f)
+
         font.color = getColourForPlayer(playerID)
-        font.draw(batch, playerID, playerX, playerY + playerTexture.height + 20f)
+        layout.setText(font, playerID)
+        val textX = playerX + (playerSprite.width - layout.width) / 2
+        val textY = playerY + playerTexture.height + 20f + layout.height
+        font.draw(batch, layout, textX, textY)
+
         playerSprite.setPosition(playerX, playerY)
         playerSprite.draw(batch)
+
+        font.data.setScale(originalScaleX, originalScaleY)
 
         batch.end()
 
