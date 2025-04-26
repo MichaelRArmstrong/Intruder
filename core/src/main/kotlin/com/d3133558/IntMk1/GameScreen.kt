@@ -33,10 +33,10 @@ import kotlin.math.abs
 //      https://gamefromscratch.com/libgdx-tutorial-11-tiled-maps-part-1-simple-orthogonal-maps/
 //      https://stackoverflow.com/questions/66740979/how-to-use-socket-in-android-with-kotlin
 
-class GameScreen : Screen {
+class GameScreen(private val game: Main, private val ip: String, private val port: Int) : Screen {
     //Server config
-    val HOST: String = "192.168.0.64"
-    val PORT: Int = 4300
+    val HOST: String = ip
+    val PORT: Int = port
 
     private val players = mutableMapOf<String, Sprite>()
 
@@ -316,7 +316,6 @@ class GameScreen : Screen {
         stage.dispose()
         batch.dispose()
         playerTexture.dispose()
-        //player2Texture.dispose()
         rcvMsg.join()
         conMsg.join()
     }

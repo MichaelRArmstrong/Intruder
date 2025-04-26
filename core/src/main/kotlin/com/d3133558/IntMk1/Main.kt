@@ -12,6 +12,6 @@ import com.d3133558.IntMk1.GameScreen
 /** [com.badlogic.gdx.ApplicationListener] implementation shared by all platforms. */
 class Main : Game() {
     override fun create() {
-        setScreen(GameScreen())
+        setScreen(MenuScreen(this))
     }
 }
