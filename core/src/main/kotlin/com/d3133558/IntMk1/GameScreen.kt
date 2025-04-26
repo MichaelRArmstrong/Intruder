@@ -5,9 +5,11 @@ import com.badlogic.gdx.Net
 import com.badlogic.gdx.Screen
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.Texture
+import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.Sprite
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.math.MathUtils
+import com.badlogic.gdx.math.Vector2
 import com.badlogic.gdx.net.SocketHints
 //import com.badlogic.gdx.net.Socket
 import com.badlogic.gdx.scenes.scene2d.Actor
@@ -15,7 +17,6 @@ import com.badlogic.gdx.scenes.scene2d.Stage
 import com.badlogic.gdx.scenes.scene2d.ui.Skin
 import com.badlogic.gdx.scenes.scene2d.ui.Touchpad
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener
-import com.badlogic.gdx.utils.ByteArray
 import com.badlogic.gdx.utils.ScreenUtils
 import com.badlogic.gdx.utils.viewport.ScreenViewport
 import java.io.InputStream
@@ -36,11 +37,12 @@ class GameScreen : Screen {
     val HOST: String = "192.168.0.64"
     val PORT: Int = 4300
 
+    private val players = mutableMapOf<String, Sprite>()
+
     private lateinit var stage: Stage
+    private lateinit var font: BitmapFont
     private lateinit var playerTexture: Texture
-    private lateinit var player2Texture: Texture
     private lateinit var playerSprite: Sprite
-    private lateinit var player2Sprite: Sprite
     private lateinit var batch: SpriteBatch
     lateinit var touchpad: Touchpad
     var touchX = 0f
@@ -49,8 +51,6 @@ class GameScreen : Screen {
     var lastTouchY = 0f
     var playerX = 100f
     var playerY = 100f
-    var player2X = 100f
-    var player2Y = 100f
     var playerSpeed = 10f
     var bRecieveMessages = true
 
@@ -61,8 +61,6 @@ class GameScreen : Screen {
     lateinit var outputStream: OutputStream
     lateinit var playerID: String
 
-
-    //val socket = Gdx.net.newClientSocket(Net.Protocol.TCP, "152.105.66.53", 4300, null)
     lateinit var rcvMsg : Thread
     lateinit var conMsg : Thread
 
@@ -72,14 +70,16 @@ class GameScreen : Screen {
         outputStream = socket.getOutputStream()
 
         batch = SpriteBatch()
+
+        font = BitmapFont()
+
         playerTexture = Texture("blob.png")
-        player2Texture = Texture("blob2.png")
+
         playerSprite = Sprite(playerTexture)
-        player2Sprite = Sprite(player2Texture)
+
         playerX = Gdx.graphics.width / 2f - playerSprite.width / 2
         playerY = Gdx.graphics.height / 2f - playerSprite.height / 2
-        player2X = Gdx.graphics.width / 2f - playerSprite.width / 2
-        player2Y = Gdx.graphics.height / 2f - playerSprite.height / 2
+
         stage = Stage(ScreenViewport(), batch)
         val touchpadSkin = Skin()
         touchpadSkin.add("touchBackground", Texture("touchpad.png"))
@@ -133,6 +133,7 @@ class GameScreen : Screen {
         buffer.get(senderBytes)
         playerID = String(senderBytes, Charsets.UTF_8)
 
+        playerSprite.color = getColourForPlayer(playerID)
 
         //start threads
         rcvMsg.start()
@@ -153,10 +154,30 @@ class GameScreen : Screen {
         ScreenUtils.clear(Color.BLACK)
 
         batch.begin()
+
+        //draw all other players
+        for ((id, sprite) in players) {
+            if (id != playerID) {
+                sprite.draw(batch)
+            }
+        }
+
+        //draw names for other players
+        for ((id, sprite) in players) {
+            if (id != playerID) {
+                sprite.draw(batch)
+
+                font.color = sprite.color // Match name text color to sprite color
+                font.draw(batch, id, sprite.x, sprite.y + sprite.height + 10f)
+            }
+        }
+
+        //draw clients sprite and name
+        font.color = getColourForPlayer(playerID)
+        font.draw(batch, playerID, playerX, playerY + playerTexture.height + 10f)
         playerSprite.setPosition(playerX, playerY)
-        player2Sprite.setPosition(player2X, player2Y)
         playerSprite.draw(batch)
-        player2Sprite.draw(batch)
+
         batch.end()
 
         stage.act(Gdx.graphics.deltaTime)
@@ -207,14 +228,23 @@ class GameScreen : Screen {
             while (true) {
                 val msg = buffer.poll()
                 if (msg != null) {
-                    Gdx.app.log("NET", "Received from ${msg.senderId}: x=${msg.x}, y=${msg.y}")
                     if (msg.senderId != playerID) {
-                        player2X = msg.x
-                        player2Y = msg.y
+                        if (!players.containsKey(msg.senderId)) {
+                            // if new player create a new sprite
+                            val newSprite = Sprite(playerTexture)
+                            //newSprite.setSize(75f, 75f)
+                            newSprite.setPosition(msg.x, msg.y)
+
+                            val playerColour = getColourForPlayer(msg.senderId)
+                            newSprite.color = playerColour
+
+                            players[msg.senderId] = newSprite
+                        } else {
+                            // if existing player update position
+                            players[msg.senderId]?.setPosition(msg.x, msg.y)
+                        }
                     }
                 }
-
-                Thread.sleep(16)
             }
         } catch (e: InterruptedException) {
             e.printStackTrace()
@@ -226,41 +256,6 @@ class GameScreen : Screen {
     }
 
     private fun logic() {
-
-//        val buffer = ConcurrentLinkedQueue<Int>()
-//        val producer = Thread {
-//            try {
-//                for (i in 1..10) {
-//                    println("Producing: $i")
-//                    buffer.add(i)
-//                    Thread.sleep(500) // Simulate delay
-//                }
-//            } catch (e: InterruptedException) {
-//                e.printStackTrace()
-//            }
-//        }
-//        val consumer = Thread {
-//            try {
-//                while (true) {
-//                    // Non-blocking: returns null if empty
-//                    val item = buffer.poll()
-//                    if (item != null) {
-//                        println(item)
-//                        Thread.sleep(1000) // Simulate processing delay
-//                    } else {
-//                        println("Queue is empty, skipping...")
-//                        Thread.sleep(200) // Avoid busy-waiting, delay
-//                    }
-//                }
-//            } catch (e: InterruptedException) {
-//                e.printStackTrace()
-//            }
-//        }
-
-//        producer.start()
-//        consumer.start()
-//        producer.join()
-//        consumer.join()
 
         playerX = MathUtils.clamp(
             playerX + touchX * playerSpeed,
@@ -298,6 +293,18 @@ class GameScreen : Screen {
 
     }
 
+    private fun getColourForPlayer(playerId: String): Color {
+        return when (playerId) {
+            "Player1" -> Color.RED
+            "Player2" -> Color.ORANGE
+            "Player3" -> Color.YELLOW
+            "Player4" -> Color.GREEN
+            "Player5" -> Color.BLUE
+            "Player6" -> Color.VIOLET
+            else -> Color.WHITE
+        }
+    }
+
     override fun resize(width: Int, height: Int) {
         stage.viewport.update(width, height, true)
     }
@@ -306,7 +313,7 @@ class GameScreen : Screen {
         stage.dispose()
         batch.dispose()
         playerTexture.dispose()
-        player2Texture.dispose()
+        //player2Texture.dispose()
         rcvMsg.join()
         conMsg.join()
     }
@@ -319,10 +326,6 @@ class GameScreen : Screen {
 
     override fun resume() {
         TODO("Not yet implemented")
-        // start the thread
-        println("resume called")
-        //val socket: Socket = Gdx.net.newClientSocket(Net.Protocol.TCP, HOST, PORT, SocketHints())
-        //val rcvMsg = thread { recieveMessages(socket) }
     }
 
     override fun hide() {
