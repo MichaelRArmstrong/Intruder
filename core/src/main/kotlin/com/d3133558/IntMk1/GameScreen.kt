@@ -27,6 +27,7 @@ import java.net.SocketException
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
+import kotlin.math.abs
 
 //TODO: https://gamefromscratch.com/libgdx-tutorial-11-tiled-maps-part-1-simple-orthogonal-maps/
 //      https://gamefromscratch.com/libgdx-tutorial-11-tiled-maps-part-1-simple-orthogonal-maps/
@@ -168,13 +169,13 @@ class GameScreen : Screen {
                 sprite.draw(batch)
 
                 font.color = sprite.color // Match name text color to sprite color
-                font.draw(batch, id, sprite.x, sprite.y + sprite.height + 10f)
+                font.draw(batch, id, sprite.x, sprite.y + sprite.height + 20f)
             }
         }
 
         //draw clients sprite and name
         font.color = getColourForPlayer(playerID)
-        font.draw(batch, playerID, playerX, playerY + playerTexture.height + 10f)
+        font.draw(batch, playerID, playerX, playerY + playerTexture.height + 20f)
         playerSprite.setPosition(playerX, playerY)
         playerSprite.draw(batch)
 
@@ -294,15 +295,17 @@ class GameScreen : Screen {
     }
 
     private fun getColourForPlayer(playerId: String): Color {
-        return when (playerId) {
-            "Player1" -> Color.RED
-            "Player2" -> Color.ORANGE
-            "Player3" -> Color.YELLOW
-            "Player4" -> Color.GREEN
-            "Player5" -> Color.BLUE
-            "Player6" -> Color.VIOLET
-            else -> Color.WHITE
-        }
+        val hash = abs(playerId.hashCode())
+        //arbitrary prime numbers for adding variation
+        val prime1 = 37
+        val prime2 = 73
+        val prime3 = 137
+
+        val r = ((hash * prime1) % 256) / 255f
+        val g = ((hash * prime2) % 256) / 255f
+        val b = ((hash * prime3) % 256) / 255f
+
+        return Color(r, g, b, 1f)
     }
 
     override fun resize(width: Int, height: Int) {
