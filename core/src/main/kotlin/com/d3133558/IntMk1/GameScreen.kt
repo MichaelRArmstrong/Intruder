@@ -22,6 +22,8 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.Socket
+import java.net.SocketException
+import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
 
@@ -31,7 +33,7 @@ import kotlin.concurrent.thread
 
 class GameScreen : Screen {
     //Server config
-    val HOST: String = "152.105.66.53"
+    val HOST: String = "192.168.0.64"
     val PORT: Int = 4300
 
     private lateinit var stage: Stage
@@ -52,7 +54,7 @@ class GameScreen : Screen {
     var playerSpeed = 10f
     var bRecieveMessages = true
 
-    val buffer = ConcurrentLinkedQueue<String>()
+    val buffer = ConcurrentLinkedQueue<GameMessage>()
 
     lateinit var socket : Socket
     lateinit var inputStream : InputStream
@@ -104,12 +106,38 @@ class GameScreen : Screen {
         Gdx.input.inputProcessor = stage
         rcvMsg = Thread { produceMessages(socket)}
         conMsg = Thread { consumeMessages()}
-        //rcvMsg.start()
-        //conMsg.start()
-        val idLength : Int = inputStream.read()
-        val idBytes : kotlin.ByteArray = kotlin.ByteArray(idLength)
-        inputStream.read(idBytes, 0, idLength)
-        playerID = idBytes.decodeToString()
+
+        // Read the handshake ID message
+        val prefix = kotlin.ByteArray(2)
+        var prefixRead = 0
+        while (prefixRead < 2) {
+            val r = inputStream.read(prefix, prefixRead, 2 - prefixRead)
+            if (r == -1) throw Exception("Socket closed while reading prefix")
+            prefixRead += r
+        }
+        val totalLength = ByteBuffer.wrap(prefix).short.toInt()
+
+        val data = kotlin.ByteArray(totalLength)
+        var readSoFar = 0
+        while (readSoFar < totalLength) {
+            val r = inputStream.read(data, readSoFar, totalLength - readSoFar)
+            if (r == -1) throw Exception("Socket closed while reading message")
+            readSoFar += r
+        }
+
+        // parse PlayerID
+        val buffer = ByteBuffer.wrap(data)
+
+        val senderLength = buffer.get().toInt()
+        val senderBytes = kotlin.ByteArray(senderLength)
+        buffer.get(senderBytes)
+        playerID = String(senderBytes, Charsets.UTF_8)
+
+
+        //start threads
+        rcvMsg.start()
+        conMsg.start()
+
     }
 
     override fun render(delta: Float) {
@@ -137,16 +165,39 @@ class GameScreen : Screen {
 
     private fun produceMessages(clientSocket: Socket) {
         try {
-            while (true) {
-                val message: kotlin.ByteArray = kotlin.ByteArray(1024)
-                clientSocket.getInputStream().read(message,0,1024)
+            val input = clientSocket.getInputStream()
+            val buffer = kotlin.ByteArray(2) //For total length
 
-                val s : String = message.decodeToString()
-                buffer.add(s)
-                Thread.sleep(250) // Simulate delay
+            while (true) {
+                //read total length (2 Bytes)
+                val prefix = kotlin.ByteArray(2)
+                var prefixRead = 0
+                while (prefixRead < 2) {
+                    val r = input.read(prefix, prefixRead, 2 - prefixRead)
+                    if (r == -1) throw Exception("Socket closed while reading prefix")
+                    prefixRead += r
+                }
+
+                val totalLength = ByteBuffer.wrap(prefix).short.toInt()
+
+                //Read the rest of the message
+                val data = kotlin.ByteArray(totalLength)
+                var readSoFar = 0
+                while (readSoFar < totalLength) {
+                    val r = input.read(data, readSoFar, totalLength - readSoFar)
+                    if (r == -1) throw Exception("stream closed mid-message")
+                    readSoFar += r
+                }
+
+                try {
+                    val message = data.toGameMessage()
+                    this.buffer.add(message)
+                } catch (e: Exception) {
+                    Gdx.app.error("NET", "Failed to parse message: ${e.message}")
+                }
             }
 
-        } catch (e: InterruptedException) {
+        } catch (e: Exception) {
             e.printStackTrace()
         }
     }
@@ -154,15 +205,16 @@ class GameScreen : Screen {
     private fun consumeMessages() {
         try {
             while (true) {
-                // Non-blocking: returns null if empty
-                val item = buffer.poll()
-                if (item != null) {
-                    println(item)
-                    Thread.sleep(250) // Simulate processing delay
-                } else {
-                    //println("Queue is empty, skipping...")
-                    //Thread.sleep(200) // Avoid busy-waiting, delay
+                val msg = buffer.poll()
+                if (msg != null) {
+                    Gdx.app.log("NET", "Received from ${msg.senderId}: x=${msg.x}, y=${msg.y}")
+                    if (msg.senderId != playerID) {
+                        player2X = msg.x
+                        player2Y = msg.y
+                    }
                 }
+
+                Thread.sleep(16)
             }
         } catch (e: InterruptedException) {
             e.printStackTrace()
@@ -229,25 +281,18 @@ class GameScreen : Screen {
             val message = GameMessage(playerID, playerX, playerY, ActionType.MOVE)
             val messageBytes = message.toByteArray()
 
-            outputStream.write(messageBytes)
-            outputStream.flush()
+            try {
+                Gdx.app.log("NET", "Sending: ${messageBytes.joinToString(" ") { it.toUByte().toString(16) }}")
+                Gdx.app.log("NET", "Socket closed? ${socket.isClosed}, connected? ${socket.isConnected}")
+                outputStream.write(messageBytes)
+                outputStream.flush()
+            } catch (e: SocketException) {
+                Gdx.app.error("NET", "Socket is broken: ${e.message}")
+                // maybe i can try reconnect here
+            }
 
             lastTouchX = touchX
             lastTouchY = touchY
-
-        }
-
-        //TODO:: Hangs at this line because presumably it is reading a message when there arent any because the program just started etc
-        val receivedBytes = inputStream.readBytes()
-        if (receivedBytes != null) {
-            val receivedMessage = receivedBytes.toGameMessage()
-
-            when (receivedMessage.action) {
-                ActionType.MOVE -> {
-                    player2X = receivedMessage.x
-                    player2Y = receivedMessage.y
-                }
-            }
 
         }
 

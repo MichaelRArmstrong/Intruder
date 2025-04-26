@@ -19,7 +19,13 @@ data class GameMessage (
 
 fun GameMessage.toByteArray(): ByteArray {
     val senderBytes = senderId.toByteArray(Charsets.UTF_8)
-    val buffer = ByteBuffer.allocate(1+senderBytes.size+4+4+1)
+
+    val contentLength = 1 + senderBytes.size + 4 + 4 + 1 //Add up the length of the message in bytes
+    val totalLength = contentLength.toShort()  //Turn it into a short to put at the front (2 Bytes)
+
+    val buffer = ByteBuffer.allocate(2 + contentLength)
+    //Store the total length (2 Bytes)
+    buffer.putShort(totalLength)
     //Store the senderID length (1 Byte)
     buffer.put(senderBytes.size.toByte())
     //Store the senderID data (n bytes)
@@ -38,6 +44,7 @@ fun ByteArray.toGameMessage(): GameMessage {
     val senderLength = buffer.get().toInt()
     val senderBytes = ByteArray(senderLength)
     //Read sender bytes
+    buffer.get(senderBytes)
     val senderId = String(senderBytes, Charsets.UTF_8)
     val x = buffer.float
     val y = buffer.float
