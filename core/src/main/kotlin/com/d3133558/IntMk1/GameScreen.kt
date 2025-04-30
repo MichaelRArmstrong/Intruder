@@ -168,9 +168,14 @@ class GameScreen(private val game: Main, private val ip: String, private val por
 
         batch.begin()
 
-        //draw all other players
+        val now = TimeUtils.millis()
+
+        //draw all other players + dead reckoning
         for ((id, player) in players) {
             if (id != playerID) {
+                val timeSinceLastUpdate = (now - player.lastUpdateTime) / 1000f
+                val predictedPos = player.lastPos.cpy().add(player.vel.cpy().scl(timeSinceLastUpdate)) //P1 + V x (t1 - t0) = P2
+                player.sprite.setPosition(predictedPos.x, predictedPos.y)
                 player.sprite.draw(batch)
             }
         }
@@ -271,7 +276,16 @@ class GameScreen(private val game: Main, private val ip: String, private val por
                         }
                         else{
                             val deltaTime = (now - player.lastUpdateTime) * 0.001f //divide by 1000 because milliseconds
-                            //val vel =
+                            val newPos = Vector2(msg.x,msg.y)
+                            val velocity = if (deltaTime > 0f)
+                                newPos.cpy().sub(player.lastPos).scl(1/deltaTime)
+                            else
+                                Vector2.Zero
+
+                            player.lastPos.set(newPos)
+                            player.vel.set(velocity)
+                            player.lastUpdateTime = now
+                            player.sprite.setPosition(msg.x,msg.y)
                         }
                     }
                 }
