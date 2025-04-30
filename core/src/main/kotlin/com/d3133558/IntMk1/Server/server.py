@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import socket
+import requests
 import threading
 import struct
 
 # Server configuration
-HOST = '192.168.0.64'  # Listen on all available network interfaces
+
+HOST = requests.get('https://api.ipify.org').text # Listen on all available network interfaces
 PORT = 4300         # Port number
 
 clients = []  # List to store connected clients
