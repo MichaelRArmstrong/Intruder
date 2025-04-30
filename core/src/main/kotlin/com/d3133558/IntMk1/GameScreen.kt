@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.g2d.Sprite
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Vector2
+import com.badlogic.gdx.math.Vector2.Zero
 import com.badlogic.gdx.net.SocketHints
 //import com.badlogic.gdx.net.Socket
 import com.badlogic.gdx.scenes.scene2d.Actor
@@ -21,6 +22,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin
 import com.badlogic.gdx.scenes.scene2d.ui.Touchpad
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener
 import com.badlogic.gdx.utils.ScreenUtils
+import com.badlogic.gdx.utils.TimeUtils
 import com.badlogic.gdx.utils.viewport.ScreenViewport
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -36,12 +38,19 @@ import kotlin.math.abs
 //      https://gamefromscratch.com/libgdx-tutorial-11-tiled-maps-part-1-simple-orthogonal-maps/
 //      https://stackoverflow.com/questions/66740979/how-to-use-socket-in-android-with-kotlin
 
+data class RemotePlayer (
+    val sprite: Sprite,
+    var lastPos: Vector2,
+    var vel: Vector2 ,
+    var lastUpdateTime: Long
+)
+
 class GameScreen(private val game: Main, private val ip: String, private val port: Int) : Screen {
     //Server config
     val HOST: String = ip
     val PORT: Int = port
 
-    private val players = mutableMapOf<String, Sprite>()
+    private val players = mutableMapOf<String, RemotePlayer>()
 
     private lateinit var stage: Stage
     private lateinit var font: BitmapFont
@@ -159,10 +168,15 @@ class GameScreen(private val game: Main, private val ip: String, private val por
 
         batch.begin()
 
-        //draw all other players
-        for ((id, sprite) in players) {
+        val now = TimeUtils.millis()
+
+        //draw all other players + dead reckoning
+        for ((id, player) in players) {
             if (id != playerID) {
-                sprite.draw(batch)
+                val timeSinceLastUpdate = (now - player.lastUpdateTime) / 1000f
+                val predictedPos = player.lastPos.cpy().add(player.vel.cpy().scl(timeSinceLastUpdate)) //P1 + V x (t1 - t0) = P2
+                player.sprite.setPosition(predictedPos.x, predictedPos.y)
+                player.sprite.draw(batch)
             }
         }
 
@@ -171,14 +185,14 @@ class GameScreen(private val game: Main, private val ip: String, private val por
         val originalScaleY = font.data.scaleY
         font.data.setScale(3f) //scale up the font
         val layout = GlyphLayout()
-        for ((id, sprite) in players) {
+        for ((id, player) in players) {
             if (id != playerID) {
-                sprite.draw(batch)
+                player.sprite.draw(batch)
 
-                font.color = sprite.color //match name text color to sprite color
+                font.color = player.sprite.color //match name text color to sprite color
                 layout.setText(font, id)
-                val textX = sprite.x + (sprite.width - layout.width) / 2 //center the text horizontally
-                val textY = sprite.y + sprite.height + 20f + layout.height //position the text above the sprite
+                val textX = player.sprite.x + (player.sprite.width - layout.width) / 2 //center the text horizontally
+                val textY = player.sprite.y + player.sprite.height + 20f + layout.height //position the text above the sprite
                 font.draw(batch, layout, textX, textY)
             }
         }
@@ -249,19 +263,29 @@ class GameScreen(private val game: Main, private val ip: String, private val por
                 val msg = buffer.poll()
                 if (msg != null) {
                     if (msg.senderId != playerID) {
-                        if (!players.containsKey(msg.senderId)) {
-                            // if new player create a new sprite
-                            val newSprite = Sprite(playerTexture)
-                            //newSprite.setSize(75f, 75f)
-                            newSprite.setPosition(msg.x, msg.y)
+                        val now = TimeUtils.millis() //Save current time in milliseconds
 
-                            val playerColour = getColourForPlayer(msg.senderId)
-                            newSprite.color = playerColour
+                        val player = players[msg.senderId]
+                        if (player == null){
+                            val sprite = Sprite(playerTexture)
+                            sprite.setPosition(msg.x, msg.y)
+                            sprite.color = getColourForPlayer(msg.senderId)
 
-                            players[msg.senderId] = newSprite
-                        } else {
-                            // if existing player update position
-                            players[msg.senderId]?.setPosition(msg.x, msg.y)
+                            val remotePlayer = RemotePlayer(sprite, Vector2(msg.x,msg.y), Vector2.Zero.cpy(),now)
+                            players[msg.senderId] = remotePlayer
+                        }
+                        else{
+                            val deltaTime = (now - player.lastUpdateTime) * 0.001f //divide by 1000 because milliseconds
+                            val newPos = Vector2(msg.x,msg.y)
+                            val velocity = if (deltaTime > 0f)
+                                newPos.cpy().sub(player.lastPos).scl(1/deltaTime)
+                            else
+                                Vector2.Zero
+
+                            player.lastPos.set(newPos)
+                            player.vel.set(velocity)
+                            player.lastUpdateTime = now
+                            player.sprite.setPosition(msg.x,msg.y)
                         }
                     }
                 }
