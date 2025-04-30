@@ -18,7 +18,7 @@ class MenuScreen (private val game: Main) : Screen{
     private val skin = Skin(Gdx.files.internal("skin/uiskin.json"))
 
     private lateinit var ipField: TextField
-    private lateinit var portField: TextField
+    //private lateinit var portField: TextField
     private lateinit var connectButton: TextButton
 
     override fun show() {
@@ -26,6 +26,7 @@ class MenuScreen (private val game: Main) : Screen{
 
         val table = Table()
         table.setFillParent(true)
+        table.setPosition(0f,300f)
 
         val textFieldStyle = skin.get(TextField.TextFieldStyle::class.java).also {
             it.font.data.setScale(4f)
@@ -33,11 +34,11 @@ class MenuScreen (private val game: Main) : Screen{
             it.font.data.down = -20f // Adjust this value
         }
 
-        ipField = TextField("192.168.0.64", skin)
+        ipField = TextField("(IP ADDRESS)", skin)
         ipField.style.font.data.setScale(4f)
 
-        portField = TextField("4300", skin)
-        portField.style.font.data.setScale(4f)
+        //portField = TextField("4300", skin)
+        //portField.style.font.data.setScale(4f)
 
         connectButton = TextButton("Connect", skin)
         connectButton.style.font.data.setScale(4f)
@@ -46,17 +47,17 @@ class MenuScreen (private val game: Main) : Screen{
         table.add(ipField).width(600f).height(100f).pad(40f)
         table.row()
 
-        table.add(Label("Port", skin))
-        table.add(portField).width(600f).height(100f).pad(40f)
-        table.row()
+        //table.add(Label("Port", skin))
+        //table.add(portField).width(600f).height(100f).pad(40f)
+        //table.row()
 
         table.add(connectButton).colspan(2).width(300f).height(100f).padTop(30f)
 
         connectButton.addListener(object : ClickListener() {
             override fun clicked(event: InputEvent, x: Float, y: Float) {
                 val ip = ipField.text
-                val port = portField.text.toIntOrNull() ?: 4300 // Default fallback
-
+                //val port = portField.text.toIntOrNull() ?: 4300 // Default fallback
+                val port = 4300 //default
                 game.setScreen(GameScreen(game, ip, port))
             }
         })
