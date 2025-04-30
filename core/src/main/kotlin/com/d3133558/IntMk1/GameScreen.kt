@@ -286,6 +286,9 @@ class GameScreen(private val game: Main, private val ip: String, private val por
                             player.vel.set(velocity)
                             player.lastUpdateTime = now
                             player.sprite.setPosition(msg.x,msg.y)
+
+                            //TODO: Add a stop message when the joystick is released/resets, so that players don't just drift off forever
+
                         }
                     }
                 }
